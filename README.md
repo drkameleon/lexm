@@ -1,6 +1,6 @@
 <div align="center">
 
-<img align="center" width="400" src="logo.png"/>
+<img align="center" width="400" src="icon.png"/>
 
 ### Lemma Markup Format<br><br>![License](https://img.shields.io/github/license/drkameleon/lexm?style=for-the-badge)
 </div>

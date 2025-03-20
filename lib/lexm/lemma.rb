@@ -28,20 +28,29 @@ module LexM
         # @param input [String] lemma string in LexM format
         # @return [Lemma] self
         def parse(input)
-            raise "Empty lemma input!" if input.strip.empty?
-
-            # Special case: redirection lemma (with >> syntax)
+            # Check for empty input
+            raise "Empty lemma input!" if input.nil? || input.strip.empty?
+            
+            # Check for basic syntax issues
+            if input.count('[') != input.count(']')
+                raise "Malformed input: mismatched brackets in '#{input}'"
+            end
+            
+            # Check for balanced pipes
+            if input.include?("|") && input.start_with?("|")
+                raise "Malformed input: lemma starts with pipe character in '#{input}'"
+            end
+          
             if input.include?(">>")
                 parseRedirectionLemma(input)
                 return self
             end
-            
-            # Standard case with possible lemma, sublemmas
+          
             lemmaPart, sublemmasPart = input.split('|', 2)
-            
+          
             parseLemma(lemmaPart)
             parseSublemmas(sublemmasPart) if sublemmasPart
-            
+          
             self
         end
 
@@ -50,13 +59,13 @@ module LexM
         # @return [void]
         def parseRedirectionLemma(input)
             if input =~ /(.+?)>>\((.+?)\)(.+)/
-                # Format: word>>(relation)target
                 @text = $1.strip
                 @redirect = LemmaRedirect.new($3.strip, $2.split(',').map(&:strip))
             elsif input =~ /(.+?)>>(.+)/
-                # Simple redirection without relation type
                 @text = $1.strip
                 @redirect = LemmaRedirect.new($2.strip)
+            else
+                raise "Malformed redirection syntax in '#{input}'. Should be 'word>>target' or 'word>>(relation)target'"
             end
         end
         
@@ -65,16 +74,26 @@ module LexM
         # @return [void]
         def parseLemma(lemmaPart)
             if lemmaPart.include?('[')
-                # Handle annotations in the lemma
                 baseLemma, annotationsPart = lemmaPart.split('[', 2)
-                raise "Malformed annotation: missing closing ']'" unless annotationsPart.end_with?(']')
+              
+                # Check for malformed annotation syntax
+                raise "Malformed annotation: missing closing ']' in '#{lemmaPart}'" unless annotationsPart.end_with?(']')
+              
+                # Ensure there's actual lemma text before annotations
+                if baseLemma.strip.empty?
+                    raise "Missing lemma text before annotations in '#{lemmaPart}'"
+                end
+              
                 @text = baseLemma.strip
-                
-                # Extract annotations from the bracket part
+          
                 annotationsPart.sub!(/\]$/, '')
                 parseAnnotations(annotationsPart)
             else
                 # Simple lemma
+                # Ensure there's actual text
+                if lemmaPart.strip.empty?
+                    raise "Empty lemma text in '#{lemmaPart}'"
+                end
                 @text = lemmaPart.strip
             end
         end
@@ -138,12 +157,35 @@ module LexM
         # @param annotationsText [String] annotations string
         # @return [void]
         def parseAnnotations(annotationsText)
+            if annotationsText.strip.empty?
+                raise "Empty annotations block"
+            end
+            
             annotationsText.split(',').each do |annotation|
+                if annotation.strip.empty?
+                    raise "Empty annotation in comma-separated list"
+                end
+              
                 if annotation.include?(':')
                     type, value = annotation.split(':', 2)
+                
+                    # Validate annotation type
+                    if type.strip.empty?
+                        raise "Empty annotation type in '#{annotation}'"
+                    end
+                
+                    # Validate annotation value
+                    if value.strip.empty?
+                        raise "Empty annotation value for type '#{type.strip}'"
+                    end
+                
                     @annotations[type.strip] = value.strip
                 else
                     # Handle simple annotations without values
+                    if annotation.strip.empty?
+                        raise "Empty annotation name"
+                    end
+                
                     @annotations[annotation.strip] = true
                 end
             end
@@ -197,6 +239,27 @@ module LexM
             @redirect = LemmaRedirect.new(target, types)
             self
         end
+
+        # Validate annotation key and value format
+        # Ensures keys and values follow the expected format
+        # @param key [String] annotation key to validate
+        # @param value [String, Boolean] annotation value to validate
+        # @return [Boolean] true if validation passes
+        # @raise [StandardError] with detailed message if validation fails
+        def validateAnnotation(key, value)
+            # Check that key matches a valid pattern (alphanumeric and limited symbols)
+            unless key =~ /^[a-zA-Z0-9_]+$/
+                raise "Invalid annotation key: '#{key}' (must contain only letters, numbers, and underscores)"
+            end
+            
+            # Additional validation for values
+            if value.is_a?(String)
+                # Check for invalid characters in value if needed
+                if value.include?(']') || value.include?('[')
+                    raise "Invalid annotation value for '#{key}': cannot contain square brackets"
+                end
+            end
+        end
         
         # Set an annotation
         # @param type [String] annotation type
@@ -206,6 +269,7 @@ module LexM
             if redirected?
                 raise "Cannot add annotations to a redirection lemma"
             end
+            validateAnnotation(type, value)
             @annotations[type] = value
             self
         end

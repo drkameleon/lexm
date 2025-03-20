@@ -75,14 +75,71 @@ module LexM
         # @param filename [String] file to parse
         # @return [LemmaList] self
         def parseFile(filename)
-            File.open(filename, 'r') do |file|
-                file.each_line do |line|
-                    line = line.strip
-                    next if line.empty? || line.start_with?('#')
-                    @lemmas << Lemma.new(line)
+            begin
+                line_number = 0
+                File.open(filename, 'r') do |file|
+                    file.each_line do |line|
+                        line_number += 1
+                        line = line.strip
+                        next if line.empty? || line.start_with?('#')
+                  
+                        begin
+                            @lemmas << Lemma.new(line)
+                        rescue StandardError => e
+                            raise "Error on line #{line_number}: #{e.message} (#{line})"
+                        end
+                    end
                 end
+            rescue Errno::ENOENT
+                raise "File not found: #{filename}"
+            rescue Errno::EACCES
+                raise "Permission denied: #{filename}"
+            rescue StandardError => e
+                raise "Error reading file: #{e.message}"
             end
             self
+        end
+
+        # Check for circular redirection chains
+        # For example, if A redirects to B, which redirects back to A
+        # @return [Boolean] true if no circular redirections are found
+        # @raise [StandardError] with cycle path if circular redirections are detected
+        def validateRedirections
+            # Build a redirection graph
+            redirection_map = {}
+            
+            @lemmas.each do |lemma|
+                if lemma.redirected?
+                    redirection_map[lemma.text] = lemma.redirect.target
+                end
+            end
+            
+            # Check for cycles
+            redirection_map.each_key do |start|
+                visited = []
+                current = start
+              
+                while redirection_map.key?(current) && !visited.include?(current)
+                    visited << current
+                    current = redirection_map[current]
+                end
+              
+                if redirection_map.key?(current) && current == start
+                    cycle_path = visited.join(" -> ") + " -> " + current
+                    raise "Circular redirection detected: #{cycle_path}"
+                end
+            end
+            
+            true
+        end
+
+        # Validate the entire lemma list for consistency
+        # Runs all validation checks
+        # @return [Boolean] true if validation passes
+        # @raise [StandardError] with detailed message if validation fails
+        def validate
+            validateRedirections
+            true
         end
         
         # Find lemmas by lemma text
@@ -184,10 +241,16 @@ module LexM
         # @param filename [String] file to save to
         # @return [void]
         def save(filename)
-            File.open(filename, 'w') do |file|
-                @lemmas.each do |lemma|
-                    file.puts(lemma.to_s)
+            begin
+                File.open(filename, 'w') do |file|
+                    @lemmas.each do |lemma|
+                        file.puts(lemma.to_s)
+                    end
                 end
+            rescue Errno::EACCES
+                raise "Permission denied: Cannot write to #{filename}"
+            rescue StandardError => e
+                raise "Error writing to file: #{e.message}"
             end
         end
         

@@ -8,7 +8,7 @@
 # Author: Yanis Zafirópulos (aka Dr.Kameleon)
 #############################################################
 
-require 'spec_helper'
+require "spec_helper"
 
 RSpec.describe LexM do
     it "has a version number" do
@@ -136,6 +136,91 @@ RSpec.describe LexM do
                 expect(words).to include("run")
                 expect(words).to include("run away")
                 expect(words.size).to eq(2)
+            end
+        end
+    end
+
+    describe "Error handling" do
+        describe Lemma do
+            describe "#parse" do
+                it "raises an error for empty input" do
+                    expect { Lemma.new("") }.to raise_error(/Empty lemma input/)
+                end
+                
+                it "raises an error for mismatched brackets" do
+                    expect { Lemma.new("word[key:value") }.to raise_error(/mismatched brackets/)
+                end
+                
+                it "raises an error for malformed redirection syntax" do
+                    expect { Lemma.new("word>> ") }.to raise_error(/Malformed redirection syntax/)
+                end
+            end
+            
+            describe "#parseLemma" do
+                it "raises an error for missing lemma text before annotations" do
+                    lemma = Lemma.new
+                    expect { lemma.send(:parseLemma, "[key:value]") }.to raise_error(/Missing lemma text/)
+                end
+            end
+            
+            describe "#parseAnnotations" do
+                it "raises an error for empty annotation type" do
+                    lemma = Lemma.new
+                    expect { lemma.send(:parseAnnotations, ":value") }.to raise_error(/Empty annotation type/)
+                end
+                
+                it "raises an error for empty annotation value" do
+                    lemma = Lemma.new
+                    expect { lemma.send(:parseAnnotations, "key:") }.to raise_error(/Empty annotation value/)
+                end
+            end
+            
+            describe "#validateAnnotation" do
+                it "raises an error for invalid annotation keys" do
+                    lemma = Lemma.new
+                    expect { lemma.send(:validateAnnotation, "key with spaces", "value") }.to raise_error(/Invalid annotation key/)
+                    expect { lemma.send(:validateAnnotation, "key-with-dashes", "value") }.to raise_error(/Invalid annotation key/)
+                end
+                
+                it "raises an error for annotation values containing brackets" do
+                    lemma = Lemma.new
+                    expect { lemma.send(:validateAnnotation, "key", "value[with]brackets") }.to raise_error(/cannot contain square brackets/)
+                end
+            end
+            
+            describe "#setRedirect" do
+                it "raises an error when setting redirect on a lemma with sublemmas" do
+                    lemma = Lemma.new("word|sublemma")
+                    expect { lemma.setRedirect("target") }.to raise_error(/Cannot set redirect on a lemma with sublemmas/)
+                end
+            end
+        end
+        
+        describe LemmaList do
+            describe "#parseFile" do
+                it "raises an error for non-existent files" do
+                    list = LemmaList.new
+                    expect { list.parseFile("nonexistent_file.lexm") }.to raise_error(/File not found/)
+                end
+            end
+            
+            describe "#validateRedirections" do
+                it "detects circular redirections" do
+                    list = LemmaList.new
+                    list.addLemma(Lemma.new("A>>(rel)B"))
+                    list.addLemma(Lemma.new("B>>(rel)C"))
+                    list.addLemma(Lemma.new("C>>(rel)A"))
+                    
+                    expect { list.validateRedirections }.to raise_error(/Circular redirection detected/)
+                end
+                
+                it "passes validation with valid redirection chains" do
+                    list = LemmaList.new
+                    list.addLemma(Lemma.new("A>>(rel)B"))
+                    list.addLemma(Lemma.new("B>>(rel)C"))
+                    
+                    expect(list.validateRedirections).to be true
+                end
             end
         end
     end

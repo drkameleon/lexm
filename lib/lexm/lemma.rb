@@ -58,12 +58,21 @@ module LexM
         # @param input [String] redirection lemma string
         # @return [void]
         def parseRedirectionLemma(input)
+            # Check for valid redirection syntax (needs a target after >>)
+            if input.match(/>>[\s]*$/)
+                raise "Malformed redirection syntax in '#{input}'. Should be 'word>>target' or 'word>>(relation)target'"
+            end
+            
             if input =~ /(.+?)>>\((.+?)\)(.+)/
                 @text = $1.strip
                 @redirect = LemmaRedirect.new($3.strip, $2.split(',').map(&:strip))
             elsif input =~ /(.+?)>>(.+)/
                 @text = $1.strip
-                @redirect = LemmaRedirect.new($2.strip)
+                target = $2.strip
+                if target.empty?
+                    raise "Malformed redirection syntax in '#{input}'. Missing target after '>>'"
+                end
+                @redirect = LemmaRedirect.new(target)
             else
                 raise "Malformed redirection syntax in '#{input}'. Should be 'word>>target' or 'word>>(relation)target'"
             end

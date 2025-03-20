@@ -28,6 +28,8 @@ module LexM
         # @param input [String] lemma string in LexM format
         # @return [Lemma] self
         def parse(input)
+            raise "Empty lemma input!" if input.strip.empty?
+
             # Special case: redirection lemma (with >> syntax)
             if input.include?(">>")
                 parseRedirectionLemma(input)
@@ -42,7 +44,7 @@ module LexM
             
             self
         end
-        
+
         # Parse a redirection lemma (with >> syntax)
         # @param input [String] redirection lemma string
         # @return [void]
@@ -65,6 +67,7 @@ module LexM
             if lemmaPart.include?('[')
                 # Handle annotations in the lemma
                 baseLemma, annotationsPart = lemmaPart.split('[', 2)
+                raise "Malformed annotation: missing closing ']'" unless annotationsPart.end_with?(']')
                 @text = baseLemma.strip
                 
                 # Extract annotations from the bracket part

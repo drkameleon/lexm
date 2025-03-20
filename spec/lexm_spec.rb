@@ -55,7 +55,7 @@ RSpec.describe LexM do
                 lemma = Lemma.new("rose|>(sp)rise")
                 expect(lemma.text).to eq("rose")
                 expect(lemma.sublemmas.size).to eq(1)
-                expect(lemma.sublemmas[0].isRedirectingSublemma?).to be true
+                expect(lemma.sublemmas[0].redirected?).to be true
                 expect(lemma.sublemmas[0].redirect.target).to eq("rise")
                 expect(lemma.sublemmas[0].redirect.types).to eq(["sp"])
             end
@@ -101,9 +101,9 @@ RSpec.describe LexM do
         let(:lemma1) { Lemma.new("run[sp:ran,pp:run]") }
         let(:lemma2) { Lemma.new("children>>(pl)child") }
 
-        describe "#addGroup" do
+        describe "#addLemma" do
             it "adds a lemma to the list" do
-                list.addGroup(lemma1)
+                list.addLemma(lemma1)
                 expect(list.size).to eq(1)
                 expect(list[0]).to eq(lemma1)
             end
@@ -111,8 +111,8 @@ RSpec.describe LexM do
 
         describe "#findByAnnotation" do
             it "finds lemmas with a specific annotation" do
-                list.addGroup(lemma1)
-                list.addGroup(lemma2)
+                list.addLemma(lemma1)
+                list.addLemma(lemma2)
                 result = list.findByAnnotation("sp")
                 expect(result.size).to eq(1)
                 expect(result[0]).to eq(lemma1)
@@ -121,8 +121,8 @@ RSpec.describe LexM do
 
         describe "#findRedirectionsTo" do
             it "finds lemmas redirecting to a target" do
-                list.addGroup(lemma1)
-                list.addGroup(lemma2)
+                list.addLemma(lemma1)
+                list.addLemma(lemma2)
                 result = list.findRedirectionsTo("child")
                 expect(result.size).to eq(1)
                 expect(result[0]).to eq(lemma2)
@@ -131,7 +131,7 @@ RSpec.describe LexM do
 
         describe "#allWords" do
             it "returns all words in the list" do
-                list.addGroup(Lemma.new("run[sp:ran,pp:run]|run away"))
+                list.addLemma(Lemma.new("run[sp:ran,pp:run]|run away"))
                 words = list.allWords
                 expect(words).to include("run")
                 expect(words).to include("run away")

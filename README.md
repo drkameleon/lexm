@@ -1,4 +1,11 @@
-# LexM - Lemma Markup Format
+<div align="center">
+
+<img align="center" width="400" src="logo.png"/>
+
+### Lemma Markup Format<br><br>![License](https://img.shields.io/github/license/drkameleon/lexm?style=for-the-badge)
+</div>
+
+---
 
 LexM is a concise, human-readable format for representing dictionary-ready, lexical entries with their various forms, relationships, and redirections.
 
@@ -118,7 +125,7 @@ LexM was created and developed by Yanis Zafirópulos (a.k.a. Dr.Kameleon). If yo
 ### How to Cite
 If you use LexM in your research or applications, please cite it as:
 
-Yanis Zafirópulos (2025). "LexM: Lemma Markup Format." GitHub repository: https://github.com/drkameleon/lexm
+> Yanis Zafirópulos (2025). "LexM: Lemma Markup Format." GitHub repository: https://github.com/drkameleon/lexm
 
 ## License
 

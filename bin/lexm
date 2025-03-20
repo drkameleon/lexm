@@ -1,0 +1,99 @@
+#!/usr/bin/env ruby
+#############################################################
+# LexM - Lemma Markup Format
+#
+# A specification for representing, dictionary-ready
+# lexical entries and their relationships
+#
+# File: bin/lexm
+# Author: Yanis Zafirópulos (aka Dr.Kameleon)
+#############################################################
+
+require "lexm"
+require "optparse"
+
+# Parse command line options
+options = {}
+OptionParser.new do |opts|
+    opts.banner = "Usage: lexm [options] [file]"
+
+    opts.on("-v", "--version", "Show version") do |v|
+        puts "LexM version #{LexM::VERSION}"
+        exit
+    end
+
+    opts.on("-h", "--help", "Show help") do
+        puts opts
+        exit
+    end
+    
+    opts.on("-c", "--count", "Count lemmas in file") do 
+        options[:count] = true
+    end
+    
+    opts.on("-l", "--list-words", "List all words (lemmas and sublemmas)") do
+        options[:list_words] = true
+    end
+    
+    opts.on("-r", "--redirects", "List all redirection lemmas") do
+        options[:redirects] = true
+    end
+    
+    opts.on("-t", "--to TARGET", "Find all lemmas redirecting to TARGET") do |target|
+        options[:target] = target
+    end
+end.parse!
+
+# Process the file if provided
+if ARGV.empty?
+    puts "No file specified. Use --help for more information."
+    exit
+end
+
+filename = ARGV[0]
+unless File.exist?(filename)
+    puts "File not found: #{filename}"
+    exit
+end
+
+begin
+    lemmas = LemmaList.new(filename)
+    
+    if options[:count]
+        puts "Total lemmas: #{lemmas.size}"
+        puts "Normal lemmas: #{lemmas.normalLemmas.size}"
+        puts "Redirection lemmas: #{lemmas.redirectedLemmas.size}"
+    elsif options[:list_words]
+        puts "All words in file:"
+        lemmas.allWords.sort.each do |word|
+            puts "  #{word}"
+        end
+    elsif options[:target]
+        target = options[:target]
+        puts "Lemmas redirecting to '#{target}':"
+        redirects = lemmas.findRedirectionsTo(target)
+        if redirects.empty?
+            puts "  None found"
+        else
+            redirects.each do |lemma|
+                if lemma.redirect&.target == target
+                    puts "  #{lemma.text} -> #{target} (#{lemma.redirect.types.join(', ')})"
+                else
+                    lemma.sublemmas.each do |sublemma|
+                        if sublemma.redirect&.target == target
+                            puts "  #{lemma.text} -> #{target} [via sublemma #{sublemma.text || '(direct)'}] (#{sublemma.redirect.types.join(', ')})"
+                        end
+                    end
+                end
+            end
+        end
+    else
+        # Default behavior: print a summary
+        puts "Loaded #{lemmas.size} lemmas from #{filename}"
+        puts "Use --help for more options"
+    end
+rescue => e
+    puts "Error processing file: #{e.message}"
+    puts e.backtrace.join("\n") if options[:debug]
+    exit 1
+end

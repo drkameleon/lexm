@@ -1,0 +1,21 @@
+# Sample LexM file
+good[cmp:better,spl:best]
+better>>(cmp)good
+best>>(spl)good
+run[sp:ran,pp:run]|run away,run through,run up
+go[sp:went,pp:gone]|go about,go ahead,go away,go back
+child
+children>>(pl)child
+abandon|abandoned,abandonment
+look|look after,look at,look down on,look for,look forward to,look into,look out,look up
+rose|>(sp)rise
+rise[sp:rose,pp:risen]
+eat[sp:ate,pp:eaten]
+ate>>(sp)eat
+eaten>>(pp)eat
+take[sp:took,pp:taken]
+took>>(sp)take
+taken>>(pp)take
+be[sp:was,pp:been]|be after,be along,be away
+was>>(sp)be
+been>>(pp)be

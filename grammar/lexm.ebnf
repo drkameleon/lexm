@@ -1,0 +1,48 @@
+(************************************************************)
+(* LexM - Lemma Markup Format                               *)
+(*                                                          *)
+(* A specification for representing, dictionary-ready       *)
+(* lexical entries and their relationships                  *)
+(*                                                          *)
+(* File: grammar/lexm.ebnf                                  *)
+(* Author: Yanis Zafirópulos (aka Dr.Kameleon)              *)
+(************************************************************)
+
+(* LexM Format Grammar (Extended Backus-Naur Form) *)
+
+(* Top-level entry *)
+LexMEntry ::= NormalLemma | RedirectionLemma | Comment
+
+(* Comments *)
+Comment ::= "#" AnyText
+
+(* Main entry types *)
+NormalLemma ::= LemmaText Annotations? ("|" SublemmaList)?
+RedirectionLemma ::= LemmaText ">>" RedirectSpec
+
+(* Lemma components *)
+LemmaText ::= Text
+Annotations ::= "[" AnnotationList "]"
+AnnotationList ::= Annotation ("," Annotation)*
+Annotation ::= AnnotationKey (":" AnnotationValue)?
+AnnotationKey ::= Text
+AnnotationValue ::= Text
+
+(* Sublemma components *)
+SublemmaList ::= Sublemma ("," Sublemma)*
+Sublemma ::= NormalSublemma | RedirectingSublemma
+NormalSublemma ::= SublemmaText SublemmaRedirect?
+RedirectingSublemma ::= ">" RedirectSpec
+SublemmaText ::= Text
+SublemmaRedirect ::= ">" RedirectSpec
+
+(* Redirection components *)
+RedirectSpec ::= RelationSpec? TargetText
+RelationSpec ::= "(" RelationList ")"
+RelationList ::= RelationType ("," RelationType)*
+RelationType ::= Text
+TargetText ::= Text
+
+(* Basic elements *)
+Text ::= [^[\]|,>:#\s]+ (* Any text without special characters *)
+AnyText ::= .* (* Any text to end of line *)

@@ -1,7 +1,7 @@
 #############################################################
 # LexM - Lemma Markup Format
 #
-# A specification for representing, dictionary-ready
+# A specification for representing dictionary-ready,
 # lexical entries and their relationships
 #
 # File: lib/lexm/lemma.rb

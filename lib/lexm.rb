@@ -5,7 +5,7 @@
 # lexical entries and their relationships
 #
 # File: lib/lexm.rb
-# Author: Yanis Zafirópulos (aka Dr.Kameleon)
+# (c) 2025 Yanis Zafirópulos (aka Dr.Kameleon)
 #############################################################
 
 require 'lexm/version'

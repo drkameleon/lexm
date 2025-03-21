@@ -6,7 +6,7 @@
 # lexical entries and their relationships
 #
 # File: examples/test_sample.rb
-# Author: Yanis Zafirópulos (aka Dr.Kameleon)
+# (c) 2025 Yanis Zafirópulos (aka Dr.Kameleon)
 #############################################################
 
 # Script to test processing the sample.lexm file

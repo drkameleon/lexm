@@ -6,7 +6,7 @@
 # lexical entries and their relationships
 #
 # File: examples/basic_usage.rb
-# Author: Yanis Zafirópulos (aka Dr.Kameleon)
+# (c) 2025 Yanis Zafirópulos (aka Dr.Kameleon)
 #############################################################
 
 # Basic usage example for the LexM library

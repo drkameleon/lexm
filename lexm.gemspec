@@ -1,11 +1,11 @@
 #############################################################
 # LexM - Lemma Markup Format
 #
-# A specification for representing, dictionary-ready
+# A specification for representing dictionary-ready,
 # lexical entries and their relationships
 #
 # File: lexm.gemspec
-# Author: Yanis Zafirópulos (aka Dr.Kameleon)
+# (c) 2025 Yanis Zafirópulos (aka Dr.Kameleon)
 #############################################################
 
 require_relative 'lib/lexm/version'

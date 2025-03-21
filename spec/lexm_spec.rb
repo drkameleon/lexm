@@ -5,7 +5,7 @@
 # lexical entries and their relationships
 #
 # File: spec/lexm_spec.rb
-# Author: Yanis Zafirópulos (aka Dr.Kameleon)
+# (c) 2025 Yanis Zafirópulos (aka Dr.Kameleon)
 #############################################################
 
 require "spec_helper"

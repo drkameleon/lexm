@@ -12,14 +12,22 @@ module LexM
     # Represents a lemma, the main entry in a lexicon
     class Lemma
         attr_accessor :text, :annotations, :sublemmas, :redirect
+        # Source location information
+        attr_accessor :source_file, :source_line, :source_column
 
         # Initialize from either a string or direct components
         # @param input [String, nil] input string in LexM format to parse
-        def initialize(input = nil)
+        # @param source_file [String, nil] source file path
+        # @param source_line [Integer, nil] source line number
+        # @param source_column [Integer, nil] source column number
+        def initialize(input = nil, source_file = nil, source_line = nil, source_column = nil)
             @text = nil
             @annotations = {}
             @sublemmas = []
             @redirect = nil
+            @source_file = source_file
+            @source_line = source_line
+            @source_column = source_column
             
             parse(input) if input.is_a?(String)
         end

@@ -157,46 +157,50 @@ module LexM
         # @raise [StandardError] if conflicts are detected
         def validateSublemmaRelationships
             # Build word maps
-            headwords = {}
+            normal_headwords = {}
+            redirection_headwords = {}
             sublemmas_map = {}
-            redirects_map = {}
             
             # First, capture all headwords and their sublemmas
             @lemmas.each do |lemma|
-                # Record all headwords
-                headwords[lemma.text] = true
-                
-                # Record redirection targets
                 if lemma.redirected?
-                    redirects_map[lemma.text] = lemma.redirect.target
-                    next
-                end
-                
-                # Process sublemmas for non-redirecting lemmas
-                lemma.sublemmas.each do |sublemma|
-                    # Skip redirecting sublemmas, we only care about actual sublemmas with text
-                    next if sublemma.redirected?
+                    redirection_headwords[lemma.text] = true
+                else
+                    normal_headwords[lemma.text] = true
                     
-                    # Record which headword this sublemma belongs to
-                    if sublemmas_map.key?(sublemma.text)
-                        sublemmas_map[sublemma.text] << lemma.text
-                    else
-                        sublemmas_map[sublemma.text] = [lemma.text]
+                    # Process sublemmas for non-redirecting lemmas
+                    lemma.sublemmas.each do |sublemma|
+                        # Skip redirecting sublemmas, we only care about actual sublemmas with text
+                        next if sublemma.redirected?
+                        
+                        # Record which headword this sublemma belongs to
+                        if sublemmas_map.key?(sublemma.text)
+                            sublemmas_map[sublemma.text] << lemma.text
+                        else
+                            sublemmas_map[sublemma.text] = [lemma.text]
+                        end
                     end
                 end
             end
             
+            # Check for words that are both normal headwords and redirection headwords
+            normal_headwords.keys.each do |word|
+                if redirection_headwords.key?(word)
+                    raise "Word '#{word}' is both a normal headword and a redirection headword"
+                end
+            end
+            
             # Check for words that are both headwords and sublemmas
-            headwords.keys.each do |word|
+            normal_headwords.keys.each do |word|
                 if sublemmas_map.key?(word)
                     raise "Word '#{word}' is both a headword and a sublemma of '#{sublemmas_map[word].join(', ')}'"
                 end
             end
             
-            # Check for words that are both regular headwords and redirect headwords
-            headwords.keys.each do |word|
-                if redirects_map.key?(word)
-                    raise "Word '#{word}' is both a normal headword and a redirection headword"
+            # Check for words that are both redirection headwords and sublemmas
+            redirection_headwords.keys.each do |word|
+                if sublemmas_map.key?(word)
+                    raise "Word '#{word}' is both a redirection headword and a sublemma of '#{sublemmas_map[word].join(', ')}'"
                 end
             end
             
@@ -304,7 +308,7 @@ module LexM
                 errors << e.message
             end
             
-            # Check for words that are both headwords and sublemmas
+            # Check for words that are both headwords and sublemmas, etc.
             begin
                 validateSublemmaRelationships
             rescue StandardError => e
@@ -330,11 +334,13 @@ module LexM
             
             # Build a map of all words and their source/type
             @lemmas.each do |lemma|
-                # Track headword
+                # Track headword type
+                source = lemma.redirected? ? "redirection headword" : "normal headword" 
+                
                 if word_sources.key?(lemma.text)
-                    word_sources[lemma.text] << "headword"
+                    word_sources[lemma.text] << source
                 else
-                    word_sources[lemma.text] = ["headword"]
+                    word_sources[lemma.text] = [source]
                 end
                 
                 # Skip if this is a redirection lemma

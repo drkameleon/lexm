@@ -204,7 +204,7 @@ lemmas.save("updated_dictionary.lexm")
 | Annotations | `[key:value,key2:value2]` | `[sp:ran,pp:run]` |
 | Sublemmas | `\|sublemma1,sublemma2` | `\|run away,run up` |
 | Redirection | `>>(type)target` | `>>(pl)child` |
-| Sublemma Redirection | `\|>(type)target` | `\|>(sp)rise` |
+| Sublemma Redirection | `>(type)target` | `>(sp)rise` |
 
 ## Attribution
 LexM was created and developed by Yanis Zafirópulos (a.k.a. Dr.Kameleon). If you use this software, please maintain this attribution.

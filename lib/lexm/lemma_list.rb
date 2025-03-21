@@ -301,68 +301,87 @@ module LexM
         def validateAll
             errors = []
             
-            # Check for duplicate headwords
-            begin
-                validateHeadwords
-            rescue StandardError => e
-                errors << e.message
-            end
+            # Create maps for tracking word usage
+            normal_headwords = {}
+            redirection_headwords = {}
+            sublemmas_map = {}
             
-            # Check for words that are both headwords and sublemmas, etc.
-            begin
-                validateSublemmaRelationships
-            rescue StandardError => e
-                errors << e.message
-            end
-            
-            # Check for circular dependencies
-            begin
-                validateCircularDependencies
-            rescue StandardError => e
-                errors << e.message
-            end
-            
-            # Check for circular redirections
-            begin
-                validateRedirections
-            rescue StandardError => e
-                errors << e.message
-            end
-            
-            # Perform a more comprehensive check for duplicate words
-            word_sources = {}
-            
-            # Build a map of all words and their source/type
+            # First, map out all words and their locations
             @lemmas.each do |lemma|
-                # Track headword type
-                source = lemma.redirected? ? "redirection headword" : "normal headword" 
-                
-                if word_sources.key?(lemma.text)
-                    word_sources[lemma.text] << source
+                if lemma.redirected?
+                    redirection_headwords[lemma.text] = true
                 else
-                    word_sources[lemma.text] = [source]
-                end
-                
-                # Skip if this is a redirection lemma
-                next if lemma.redirected?
-                
-                # Track sublemmas
-                lemma.sublemmas.each do |sublemma|
-                    next if sublemma.redirected?
+                    normal_headwords[lemma.text] = true
                     
-                    source = "sublemma of '#{lemma.text}'"
-                    if word_sources.key?(sublemma.text)
-                        word_sources[sublemma.text] << source
-                    else
-                        word_sources[sublemma.text] = [source]
+                    # Process sublemmas for non-redirecting lemmas
+                    lemma.sublemmas.each do |sublemma|
+                        next if sublemma.redirected?
+                        
+                        # Record which headword this sublemma belongs to
+                        if sublemmas_map.key?(sublemma.text)
+                            sublemmas_map[sublemma.text] << lemma.text
+                        else
+                            sublemmas_map[sublemma.text] = [lemma.text]
+                        end
                     end
                 end
             end
             
-            # Find words that appear in multiple places
-            word_sources.each do |word, sources|
-                if sources.size > 1 && !errors.any? { |error| error.include?(word) }
-                    errors << "Word '#{word}' appears multiple times as: #{sources.join(', ')}"
+            # Check for duplicate headwords
+            headword_counts = {}
+            @lemmas.each do |lemma|
+                headword_counts[lemma.text] ||= 0
+                headword_counts[lemma.text] += 1
+            end
+            
+            headword_counts.each do |word, count|
+                if count > 1
+                    errors << "Duplicate headword detected: '#{word}'"
+                end
+            end
+            
+            # Check for words that are both normal headwords and redirection headwords
+            normal_headwords.keys.each do |word|
+                if redirection_headwords.key?(word)
+                    errors << "Word '#{word}' is both a normal headword and a redirection headword"
+                end
+            end
+            
+            # Check for words that are both headwords and sublemmas
+            normal_headwords.keys.each do |word|
+                if sublemmas_map.key?(word)
+                    errors << "Word '#{word}' is both a headword and a sublemma of '#{sublemmas_map[word].join(', ')}'"
+                end
+            end
+            
+            # Check for words that are both redirection headwords and sublemmas
+            redirection_headwords.keys.each do |word|
+                if sublemmas_map.key?(word)
+                    errors << "Word '#{word}' is both a redirection headword and a sublemma of '#{sublemmas_map[word].join(', ')}'"
+                end
+            end
+            
+            # Check for sublemmas that appear in multiple entries
+            sublemmas_map.each do |sublemma, headword_list|
+                if headword_list.size > 1
+                    errors << "Sublemma '#{sublemma}' appears in multiple entries: #{headword_list.join(', ')}"
+                end
+            end
+            
+            # Perform additional checks only if no errors so far
+            if errors.empty?
+                # Check for circular dependencies
+                begin
+                    validateCircularDependencies
+                rescue StandardError => e
+                    errors << e.message
+                end
+                
+                # Check for circular redirections
+                begin
+                    validateRedirections
+                rescue StandardError => e
+                    errors << e.message
                 end
             end
             

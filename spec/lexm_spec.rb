@@ -222,8 +222,8 @@ RSpec.describe LexM do
             end
             
             it "detects words that are both normal headwords and redirection headwords" do
-                list.addLemma(Lemma.new("run[sp:ran]"))
-                list.addLemma(Lemma.new("run>>go"))
+                list.addLemma(Lemma.new("run[sp:ran]"), false)
+                list.instance_variable_get(:@lemmas) << Lemma.new("run>>go")
                 
                 errors = list.validateAll
                 expect(errors).not_to be_empty
@@ -329,10 +329,10 @@ RSpec.describe LexM do
             describe "#validateSublemmaRelationships" do
                 it "detects when a word is both a headword and a redirection headword" do
                     list = LemmaList.new
-                    list.addLemma(Lemma.new("jewel|jeweler,jewellery,jewelry"))
-                    list.addLemma(Lemma.new("jewellery>>(uk)jewelry"))
+                    list.addLemma(Lemma.new("run[sp:ran]"), false)
+                    list.instance_variable_get(:@lemmas) << Lemma.new("run>>go")
                     
-                    expect { list.validateSublemmaRelationships }.to raise_error(/both a headword and a sublemma/)
+                    expect { list.validateSublemmaRelationships }.to raise_error(/both a normal headword and a redirection headword/)
                 end
             end
         end

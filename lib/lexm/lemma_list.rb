@@ -133,6 +133,10 @@ module LexM
             true
         end
 
+        # Ensures no headword appears more than once in the list
+        # This prevents ambiguity and conflicts in the dictionary
+        # @return [Boolean] true if no duplicate headwords are found
+        # @raise [StandardError] if duplicate headwords are detected
         def validateHeadwords
             # Check for duplicate headwords
             headwords = {}
@@ -147,18 +151,28 @@ module LexM
             true
         end
 
+        # Ensures that words don't appear as both headwords and sublemmas,
+        # and that the same sublemma doesn't appear under multiple headwords
+        # @return [Boolean] true if no conflicts are found
+        # @raise [StandardError] if conflicts are detected
         def validateSublemmaRelationships
             # Build word maps
             headwords = {}
             sublemmas_map = {}
+            redirects_map = {}
             
             # First, capture all headwords and their sublemmas
             @lemmas.each do |lemma|
-                # Skip redirection lemmas since they don't have sublemmas
-                next if lemma.redirected?
-                
+                # Record all headwords
                 headwords[lemma.text] = true
                 
+                # Record redirection targets
+                if lemma.redirected?
+                    redirects_map[lemma.text] = lemma.redirect.target
+                    next
+                end
+                
+                # Process sublemmas for non-redirecting lemmas
                 lemma.sublemmas.each do |sublemma|
                     # Skip redirecting sublemmas, we only care about actual sublemmas with text
                     next if sublemma.redirected?
@@ -179,6 +193,13 @@ module LexM
                 end
             end
             
+            # Check for words that are both regular headwords and redirect headwords
+            headwords.keys.each do |word|
+                if redirects_map.key?(word)
+                    raise "Word '#{word}' is both a normal headword and a redirection headword"
+                end
+            end
+            
             # Check for sublemmas that appear in multiple entries
             sublemmas_map.each do |sublemma, headword_list|
                 if headword_list.size > 1
@@ -189,6 +210,11 @@ module LexM
             true
         end
 
+        # Detects circular dependencies between lemmas and sublemmas
+        # A circular dependency would result in infinite recursion when
+        # expanding or processing the lemma structure
+        # @return [Boolean] true if no circular dependencies are found
+        # @raise [StandardError] if circular dependencies are detected
         def validateCircularDependencies
             # Build a graph of dependencies (headword -> sublemmas)
             dependency_graph = {}
@@ -214,6 +240,14 @@ module LexM
             true
         end
         
+        # Helper method for validateCircularDependencies
+        # Recursively traverses the dependency graph to find cycles using DFS
+        # @param graph [Hash] The dependency graph mapping lemmas to their sublemmas
+        # @param start [String] The starting node for cycle detection
+        # @param visited [Array] Nodes already visited in any path
+        # @param path [Array] Nodes visited in the current path
+        # @return [Boolean] True if no cycles are detected
+        # @raise [StandardError] if a cycle is detected
         def detectCycles(graph, start, visited = [], path = [])
             # Mark the current node as visited and add to path
             visited << start
@@ -244,7 +278,6 @@ module LexM
         # Validate the entire lemma list for consistency
         # Runs all validation checks
         # @return [Boolean] true if validation passes
-        # @raise [StandardError] with detailed message if validation fails
         def validate
             begin
                 validateHeadwords
@@ -256,6 +289,78 @@ module LexM
                 puts "Validation error: #{e.message}"
                 return false
             end
+        end
+        
+        # Performs all validation checks and returns an array of all errors
+        # instead of raising on the first error encountered
+        # @return [Array<String>] List of validation errors or empty array if valid
+        def validateAll
+            errors = []
+            
+            # Check for duplicate headwords
+            begin
+                validateHeadwords
+            rescue StandardError => e
+                errors << e.message
+            end
+            
+            # Check for words that are both headwords and sublemmas
+            begin
+                validateSublemmaRelationships
+            rescue StandardError => e
+                errors << e.message
+            end
+            
+            # Check for circular dependencies
+            begin
+                validateCircularDependencies
+            rescue StandardError => e
+                errors << e.message
+            end
+            
+            # Check for circular redirections
+            begin
+                validateRedirections
+            rescue StandardError => e
+                errors << e.message
+            end
+            
+            # Perform a more comprehensive check for duplicate words
+            word_sources = {}
+            
+            # Build a map of all words and their source/type
+            @lemmas.each do |lemma|
+                # Track headword
+                if word_sources.key?(lemma.text)
+                    word_sources[lemma.text] << "headword"
+                else
+                    word_sources[lemma.text] = ["headword"]
+                end
+                
+                # Skip if this is a redirection lemma
+                next if lemma.redirected?
+                
+                # Track sublemmas
+                lemma.sublemmas.each do |sublemma|
+                    next if sublemma.redirected?
+                    
+                    source = "sublemma of '#{lemma.text}'"
+                    if word_sources.key?(sublemma.text)
+                        word_sources[sublemma.text] << source
+                    else
+                        word_sources[sublemma.text] = [source]
+                    end
+                end
+            end
+            
+            # Find words that appear in multiple places
+            word_sources.each do |word, sources|
+                if sources.size > 1 && !errors.any? { |error| error.include?(word) }
+                    errors << "Word '#{word}' appears multiple times as: #{sources.join(', ')}"
+                end
+            end
+            
+            errors
         end
         
         # Find lemmas by lemma text
@@ -309,19 +414,51 @@ module LexM
             end
         end
         
-        # Add a new lemma
-        # @param lemma [Lemma] lemma to add
-        # @return [LemmaList] self
-        def addLemma(lemma)
-            @lemmas << lemma
+        # Adds a lemma to the list
+        # If a lemma with the same headword already exists, it will merge the
+        # annotations and sublemmas from the new lemma into the existing one
+        # @param lemma [Lemma] The lemma to add
+        # @param merge [Boolean] Whether to merge with existing lemmas (default: true)
+        # @return [LemmaList] self for method chaining
+        def addLemma(lemma, merge = true)
+            # Find existing lemma with the same headword
+            existing = findByText(lemma.text).first
+            
+            if existing && merge
+                # Merge annotations
+                lemma.annotations.each do |key, value|
+                    existing.setAnnotation(key, value)
+                end
+                
+                # Merge sublemmas
+                lemma.sublemmas.each do |sublemma|
+                    # Check if this sublemma already exists
+                    sublemma_exists = existing.sublemmas.any? do |existing_sublemma|
+                        existing_sublemma.text == sublemma.text &&
+                        (!existing_sublemma.redirected? && !sublemma.redirected?)
+                    end
+                    
+                    # Add the sublemma if it doesn't exist
+                    unless sublemma_exists
+                        existing.sublemmas << sublemma
+                    end
+                end
+            else
+                # Add as new lemma
+                @lemmas << lemma
+            end
+            
             self
         end
         
         # Add multiple lemmas at once
         # @param lemmas [Array<Lemma>] lemmas to add
+        # @param merge [Boolean] Whether to merge with existing lemmas (default: true)
         # @return [LemmaList] self
-        def addLemmas(lemmas)
-            @lemmas.concat(lemmas)
+        def addLemmas(lemmas, merge = true)
+            lemmas.each do |lemma|
+                addLemma(lemma, merge)
+            end
             self
         end
         

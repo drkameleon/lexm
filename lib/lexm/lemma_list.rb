@@ -208,7 +208,7 @@ module LexM
             
             # For each headword, check for circular dependencies
             dependency_graph.each_key do |start|
-                detect_cycles(dependency_graph, start)
+                detectCycles(dependency_graph, start)
             end
             
             true

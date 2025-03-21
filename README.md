@@ -11,6 +11,27 @@
 
 ---
 
+<!--ts-->
+* [Lemma Markup Format](#lemma-markup-format)
+  * [Installation](#installation)
+  * [Basic Format](#basic-format)
+  * [Examples](#examples)
+  * [Entry Types](#entry-types)
+    * [Standard Lemma](#standard-lemma)
+    * [Lemma with Sublemmas](#lemma-with-sublemmas)
+    * [Redirection Entry](#redirection-entry)
+    * [Mixed Format](#mixed-format)
+  * [Advanced Features](#advanced-features)
+    * [Validation](#validation)
+    * [File Operations](#file-operations)
+  * [LexM Format Specification](#lexm-format-specification)
+  * [Attribution](#-attribution)
+    * [How to Cite](#how-to-cite)
+  * [License](#license)
+<!--te-->
+
+---
+
 LexM is a concise, human-readable format for representing dictionary-ready lexical entries with their various forms, relationships, and redirections. It's designed to be both easy to write by hand and simple to parse programmatically.
 
 ## Installation

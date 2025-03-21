@@ -107,6 +107,62 @@ RSpec.describe LexM do
                 expect(list.size).to eq(1)
                 expect(list[0]).to eq(lemma1)
             end
+            
+            context "with merging" do
+                it "merges annotations when adding a lemma with the same headword" do
+                    list.addLemma(Lemma.new("run[sp:ran]"))
+                    list.addLemma(Lemma.new("run[pp:run]"))
+                    
+                    expect(list.size).to eq(1)
+                    expect(list[0].annotations["sp"]).to eq("ran")
+                    expect(list[0].annotations["pp"]).to eq("run")
+                end
+                
+                it "merges sublemmas when adding a lemma with the same headword" do
+                    list.addLemma(Lemma.new("run|run away"))
+                    list.addLemma(Lemma.new("run|run through"))
+                    
+                    expect(list.size).to eq(1)
+                    expect(list[0].sublemmas.size).to eq(2)
+                    expect(list[0].sublemmas.map(&:text)).to include("run away", "run through")
+                end
+                
+                it "doesn't add duplicate sublemmas" do
+                    list.addLemma(Lemma.new("run|run away,run up"))
+                    list.addLemma(Lemma.new("run|run away,run through"))
+                    
+                    expect(list.size).to eq(1)
+                    expect(list[0].sublemmas.size).to eq(3)
+                    expect(list[0].sublemmas.map(&:text)).to include("run away", "run up", "run through")
+                end
+                
+                it "doesn't merge when merge parameter is false" do
+                    list.addLemma(Lemma.new("run[sp:ran]"))
+                    list.addLemma(Lemma.new("run[pp:run]"), false)
+                    
+                    expect(list.size).to eq(2)
+                    expect(list[0].annotations["sp"]).to eq("ran")
+                    expect(list[0].annotations["pp"]).to be_nil
+                    expect(list[1].annotations["pp"]).to eq("run")
+                    expect(list[1].annotations["sp"]).to be_nil
+                end
+            end
+        end
+        
+        describe "#addLemmas" do
+            it "adds multiple lemmas with merge support" do
+                lemmas = [
+                    Lemma.new("run[sp:ran]"),
+                    Lemma.new("run[pp:run]|run away"),
+                    Lemma.new("walk[sp:walked]")
+                ]
+                
+                list.addLemmas(lemmas)
+                
+                expect(list.size).to eq(2) # run and walk
+                expect(list.findByText("run").first.annotations.keys).to include("sp", "pp")
+                expect(list.findByText("run").first.sublemmas.size).to eq(1)
+            end
         end
 
         describe "#findByAnnotation" do
@@ -136,6 +192,53 @@ RSpec.describe LexM do
                 expect(words).to include("run")
                 expect(words).to include("run away")
                 expect(words.size).to eq(2)
+            end
+        end
+        
+        describe "#validateAll" do
+            it "returns an empty array when there are no validation errors" do
+                list.addLemma(Lemma.new("run[sp:ran,pp:run]"))
+                list.addLemma(Lemma.new("walk[sp:walked]"))
+                
+                expect(list.validateAll).to be_empty
+            end
+            
+            it "detects duplicate headwords" do
+                list.addLemma(Lemma.new("run[sp:ran]"), false)
+                list.addLemma(Lemma.new("run[pp:run]"), false)
+                
+                errors = list.validateAll
+                expect(errors).not_to be_empty
+                expect(errors.any? { |e| e.include?("Duplicate headword") }).to be true
+            end
+            
+            it "detects words that are both headwords and sublemmas" do
+                list.addLemma(Lemma.new("run|walk"))
+                list.addLemma(Lemma.new("walk[sp:walked]"))
+                
+                errors = list.validateAll
+                expect(errors).not_to be_empty
+                expect(errors.any? { |e| e.include?("both a headword and a sublemma") }).to be true
+            end
+            
+            it "detects words that are both normal headwords and redirection headwords" do
+                list.addLemma(Lemma.new("run[sp:ran]"))
+                list.addLemma(Lemma.new("run>>go"))
+                
+                errors = list.validateAll
+                expect(errors).not_to be_empty
+                expect(errors.any? { |e| e.include?("both a normal headword and a redirection headword") }).to be true
+            end
+            
+            it "detects all issues at once" do
+                # Set up multiple validation issues
+                list.addLemma(Lemma.new("worse|worst,>(cmp)bad"))
+                list.addLemma(Lemma.new("worst>>(spl)bad"))
+                list.addLemma(Lemma.new("aid|aide"))
+                list.addLemma(Lemma.new("aide>>assistant"))
+                
+                errors = list.validateAll
+                expect(errors.size).to be >= 2 # At least the two issues we know about
             end
         end
     end
@@ -220,6 +323,16 @@ RSpec.describe LexM do
                     list.addLemma(Lemma.new("B>>(rel)C"))
                     
                     expect(list.validateRedirections).to be true
+                end
+            end
+            
+            describe "#validateSublemmaRelationships" do
+                it "detects when a word is both a headword and a redirection headword" do
+                    list = LemmaList.new
+                    list.addLemma(Lemma.new("jewel|jeweler,jewellery,jewelry"))
+                    list.addLemma(Lemma.new("jewellery>>(uk)jewelry"))
+                    
+                    expect { list.validateSublemmaRelationships }.to raise_error(/both a headword and a sublemma/)
                 end
             end
         end

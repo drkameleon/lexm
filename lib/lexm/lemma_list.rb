@@ -133,13 +133,129 @@ module LexM
             true
         end
 
+        def validateHeadwords
+            # Check for duplicate headwords
+            headwords = {}
+            
+            @lemmas.each do |lemma|
+                if headwords.key?(lemma.text)
+                    raise "Duplicate headword detected: '#{lemma.text}'"
+                end
+                headwords[lemma.text] = true
+            end
+            
+            true
+        end
+
+        def validateSublemmaRelationships
+            # Build word maps
+            headwords = {}
+            sublemmas_map = {}
+            
+            # First, capture all headwords and their sublemmas
+            @lemmas.each do |lemma|
+                # Skip redirection lemmas since they don't have sublemmas
+                next if lemma.redirected?
+                
+                headwords[lemma.text] = true
+                
+                lemma.sublemmas.each do |sublemma|
+                    # Skip redirecting sublemmas, we only care about actual sublemmas with text
+                    next if sublemma.redirected?
+                    
+                    # Record which headword this sublemma belongs to
+                    if sublemmas_map.key?(sublemma.text)
+                        sublemmas_map[sublemma.text] << lemma.text
+                    else
+                        sublemmas_map[sublemma.text] = [lemma.text]
+                    end
+                end
+            end
+            
+            # Check for words that are both headwords and sublemmas
+            headwords.keys.each do |word|
+                if sublemmas_map.key?(word)
+                    raise "Word '#{word}' is both a headword and a sublemma of '#{sublemmas_map[word].join(', ')}'"
+                end
+            end
+            
+            # Check for sublemmas that appear in multiple entries
+            sublemmas_map.each do |sublemma, headword_list|
+                if headword_list.size > 1
+                    raise "Sublemma '#{sublemma}' appears in multiple entries: #{headword_list.join(', ')}"
+                end
+            end
+            
+            true
+        end
+
+        def validateCircularDependencies
+            # Build a graph of dependencies (headword -> sublemmas)
+            dependency_graph = {}
+            
+            @lemmas.each do |lemma|
+                next if lemma.redirected?
+                
+                # Initialize headword in the graph if not present
+                dependency_graph[lemma.text] ||= []
+                
+                # Add all non-redirecting sublemmas as dependencies
+                lemma.sublemmas.each do |sublemma|
+                    next if sublemma.redirected?
+                    dependency_graph[lemma.text] << sublemma.text
+                end
+            end
+            
+            # For each headword, check for circular dependencies
+            dependency_graph.each_key do |start|
+                detect_cycles(dependency_graph, start)
+            end
+            
+            true
+        end
+        
+        def detectCycles(graph, start, visited = [], path = [])
+            # Mark the current node as visited and add to path
+            visited << start
+            path << start
+            
+            # Visit all neighbors
+            if graph.key?(start)
+                graph[start].each do |neighbor|
+                    # Skip if neighbor is not a headword (not in graph)
+                    next unless graph.key?(neighbor)
+                    
+                    if !visited.include?(neighbor)
+                        detectCycles(graph, neighbor, visited, path)
+                    elsif path.include?(neighbor)
+                        # Cycle detected
+                        cycle_start_index = path.index(neighbor)
+                        cycle = path[cycle_start_index..-1] << neighbor
+                        raise "Circular dependency detected: #{cycle.join(' -> ')}"
+                    end
+                end
+            end
+            
+            # Remove the current node from path
+            path.pop
+            true
+        end
+
         # Validate the entire lemma list for consistency
         # Runs all validation checks
         # @return [Boolean] true if validation passes
         # @raise [StandardError] with detailed message if validation fails
         def validate
-            validateRedirections
-            true
+            begin
+                validateHeadwords
+                validateSublemmaRelationships
+                validateCircularDependencies
+                validateRedirections
+                return true
+            rescue StandardError => e
+                puts "Validation error: #{e.message}"
+                return false
+            end
         end
         
         # Find lemmas by lemma text

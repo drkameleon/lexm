@@ -59,6 +59,13 @@ RSpec.describe LexM do
                 expect(lemma.sublemmas[0].redirect.target).to eq("rise")
                 expect(lemma.sublemmas[0].redirect.types).to eq(["sp"])
             end
+            
+            it "stores source location information" do
+                lemma = Lemma.new("run[sp:ran]", "test.lexm", 10, 5)
+                expect(lemma.source_file).to eq("test.lexm")
+                expect(lemma.source_line).to eq(10)
+                expect(lemma.source_column).to eq(5)
+            end
         end
 
         describe "#to_s" do
@@ -93,6 +100,15 @@ RSpec.describe LexM do
                 expect(lemma.sublemmas).to be_empty
                 expect(lemma.redirect).to be_nil
             end
+        end
+    end
+    
+    describe Sublemma do
+        it "stores source location information" do
+            sublemma = Sublemma.new("test", nil, "test.lexm", 15, 20)
+            expect(sublemma.source_file).to eq("test.lexm")
+            expect(sublemma.source_line).to eq(15)
+            expect(sublemma.source_column).to eq(20)
         end
     end
 
@@ -195,6 +211,50 @@ RSpec.describe LexM do
             end
         end
         
+        describe "#parseFile" do
+            it "tracks source location information" do
+                # Create a temporary file
+                filename = "temp_test.lexm"
+                File.open(filename, "w") do |file|
+                    file.puts("run[sp:ran]|run away")
+                end
+                
+                list = LemmaList.new(filename)
+                
+                # Test lemma location
+                lemma = list[0]
+                expect(lemma.source_file).to eq(filename)
+                expect(lemma.source_line).to eq(1)
+                
+                # Test sublemma location
+                sublemma = lemma.sublemmas.first
+                expect(sublemma.source_file).to eq(filename)
+                expect(sublemma.source_line).to eq(1)
+                expect(sublemma.source_column).to be > 0
+                
+                # Clean up
+                File.delete(filename)
+            end
+        end
+        
+        describe "#source_location_str" do
+            it "formats source location information" do
+                lemma = Lemma.new("test", "file.lexm", 10, 5)
+                list = LemmaList.new
+                
+                location = list.send(:source_location_str, lemma)
+                expect(location).to eq("file.lexm:10, col: 5")
+            end
+            
+            it "handles missing location information" do
+                lemma = Lemma.new("test")
+                list = LemmaList.new
+                
+                location = list.send(:source_location_str, lemma)
+                expect(location).to eq("unknown location")
+            end
+        end
+        
         describe "#validateAll" do
             it "returns an empty array when there are no validation errors" do
                 list.addLemma(Lemma.new("run[sp:ran,pp:run]"))
@@ -239,6 +299,27 @@ RSpec.describe LexM do
                 
                 errors = list.validateAll
                 expect(errors.size).to be >= 2 # At least the two issues we know about
+            end
+            
+            it "includes source location information in error messages" do
+                # Create lemmas with source location
+                lemma1 = Lemma.new("run|walk", "test.lexm", 5, 1)
+                sublemma = lemma1.sublemmas.first
+                sublemma.source_file = "test.lexm"
+                sublemma.source_line = 5
+                sublemma.source_column = 5
+                
+                lemma2 = Lemma.new("walk[sp:walked]", "test.lexm", 10, 1)
+                
+                list.addLemma(lemma1)
+                list.addLemma(lemma2)
+                
+                errors = list.validateAll
+                expect(errors).not_to be_empty
+                
+                # Check that source locations are included in error messages
+                location_pattern = /test\.lexm:\d+/
+                expect(errors.first).to match(location_pattern)
             end
         end
     end
@@ -324,6 +405,22 @@ RSpec.describe LexM do
                     
                     expect(list.validateRedirections).to be true
                 end
+                
+                it "includes source location in circular redirection errors" do
+                    list = LemmaList.new
+                    list.addLemma(Lemma.new("A>>(rel)B", "test.lexm", 1, 1))
+                    list.addLemma(Lemma.new("B>>(rel)C", "test.lexm", 2, 1))
+                    list.addLemma(Lemma.new("C>>(rel)A", "test.lexm", 3, 1))
+                    
+                    begin
+                        list.validateRedirections
+                        fail "Expected circular redirection error not raised"
+                    rescue StandardError => e
+                        expect(e.message).to include("test.lexm:1")
+                        expect(e.message).to include("test.lexm:2")
+                        expect(e.message).to include("test.lexm:3")
+                    end
+                end
             end
             
             describe "#validateSublemmaRelationships" do
@@ -333,6 +430,51 @@ RSpec.describe LexM do
                     list.instance_variable_get(:@lemmas) << Lemma.new("run>>go")
                     
                     expect { list.validateSublemmaRelationships }.to raise_error(/both a normal headword and a redirection headword/)
+                end
+                
+                it "includes source location in validation errors" do
+                    list = LemmaList.new
+                    lemma1 = Lemma.new("run[sp:ran]", "test.lexm", 5, 1)
+                    lemma2 = Lemma.new("run>>go", "test.lexm", 10, 1)
+                    
+                    list.addLemma(lemma1, false)
+                    list.instance_variable_get(:@lemmas) << lemma2
+                    
+                    begin
+                        list.validateSublemmaRelationships
+                        fail "Expected validation error not raised"
+                    rescue StandardError => e
+                        expect(e.message).to include("test.lexm:5")
+                        expect(e.message).to include("test.lexm:10")
+                    end
+                end
+            end
+            
+            describe "#validateCircularDependencies" do
+                it "includes source location in circular dependency errors" do
+                    list = LemmaList.new
+                    
+                    # Create a circular dependency with source locations
+                    lemma1 = Lemma.new("A|B", "test.lexm", 1, 1)
+                    lemma1.sublemmas.first.source_file = "test.lexm"
+                    lemma1.sublemmas.first.source_line = 1
+                    lemma1.sublemmas.first.source_column = 3
+                    
+                    lemma2 = Lemma.new("B|A", "test.lexm", 2, 1)
+                    lemma2.sublemmas.first.source_file = "test.lexm"
+                    lemma2.sublemmas.first.source_line = 2
+                    lemma2.sublemmas.first.source_column = 3
+                    
+                    list.addLemma(lemma1)
+                    list.addLemma(lemma2)
+                    
+                    begin
+                        list.validateCircularDependencies
+                        fail "Expected circular dependency error not raised"
+                    rescue StandardError => e
+                        expect(e.message).to include("test.lexm:1")
+                        expect(e.message).to include("test.lexm:2")
+                    end
                 end
             end
         end

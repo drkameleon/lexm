@@ -2,12 +2,16 @@
 
 <img align="center" width="400" src="icon.png"/>
 
-### Lemma Markup Format<br><br>![License](https://img.shields.io/github/license/drkameleon/lexm?style=for-the-badge)
+### Lemma Markup Format
+
+![License](https://img.shields.io/github/license/drkameleon/lexm?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.3.0-blue.svg?style=for-the-badge)
+
 </div>
 
 ---
 
-LexM is a concise, human-readable format for representing dictionary-ready, lexical entries with their various forms, relationships, and redirections.
+LexM is a concise, human-readable format for representing dictionary-ready lexical entries with their various forms, relationships, and redirections. It's designed to be both easy to write by hand and simple to parse programmatically.
 
 ## Installation
 
@@ -36,6 +40,9 @@ A LexM entry consists of a lemma (headword) and optional elements:
 ```
 lemma[annotations]|sublemma1,sublemma2,>(relation)target
 ```
+
+> [!NOTE]
+> The format is designed to be human-readable while still being structured enough for programmatic processing. This makes it ideal for dictionary development, computational linguistics, and language learning applications.
 
 ## Examples
 
@@ -85,6 +92,9 @@ list.eachWord do |word|
 end
 ```
 
+> [!TIP]
+> When using `addLemma`, the method will automatically merge lemmas with the same headword by default, combining their annotations and adding new sublemmas. Use `addLemma(lemma, false)` to add a lemma without merging.
+
 ## Entry Types
 
 ### Standard Lemma
@@ -118,6 +128,62 @@ A lemma that has sublemmas including a redirection:
 ```
 left|left-handed,>(sp,pp)leave
 ```
+
+## Advanced Features
+
+### Validation
+
+LexM includes comprehensive validation to ensure your dictionary data is consistent and free of conflicts:
+
+```ruby
+list = LemmaList.new
+# Add lemmas...
+
+# Option 1: Validates and returns true/false
+if list.validate
+  puts "Dictionary is valid!"
+else
+  puts "Dictionary contains errors"
+end
+
+# Option 2: Get a list of all validation errors
+errors = list.validateAll
+if errors.empty?
+  puts "Dictionary is valid!"
+else
+  puts "Validation errors:"
+  errors.each { |error| puts "- #{error}" }
+end
+```
+
+> [!IMPORTANT]
+> The `validateAll` method checks for all validation issues at once, including:
+> - Duplicate headwords
+> - Words that appear as both headwords and sublemmas
+> - Words that appear as both normal headwords and redirection headwords
+> - Circular dependencies and redirections
+
+### File Operations
+
+Load from and save to LexM files:
+
+```ruby
+# Load from file
+lemmas = LemmaList.new("dictionary.lexm")
+
+# Save to file
+lemmas.save("updated_dictionary.lexm")
+```
+
+## LexM Format Specification
+
+| Element | Syntax | Example |
+|---------|--------|---------|
+| Lemma | `word` | `run` |
+| Annotations | `[key:value,key2:value2]` | `[sp:ran,pp:run]` |
+| Sublemmas | `\|sublemma1,sublemma2` | `\|run away,run up` |
+| Redirection | `>>(type)target` | `>>(pl)child` |
+| Sublemma Redirection | `\|>(type)target` | `\|>(sp)rise` |
 
 ## Attribution
 LexM was created and developed by Yanis Zafirópulos (a.k.a. Dr.Kameleon). If you use this software, please maintain this attribution.

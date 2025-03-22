@@ -134,11 +134,11 @@ module LexM
                 # Split the sublemmas and process each one
                 sublemmas = sublemmasPart.split(',')
                 
-                # Process normal sublemmas
+                # Process each sublemma
                 sublemmas.each do |sublemma|
                     sublemma = sublemma.strip
                     
-                    # Handle pure redirection sublemma
+                    # Handle pure redirection sublemma (starts with >)
                     if sublemma.start_with?('>')
                         if sublemma =~ />\((.+?)\)(.+)/
                             redirect = LemmaRedirect.new($2.strip, $1.split(',').map(&:strip))
@@ -149,6 +149,7 @@ module LexM
                         end
                     # Handle normal sublemma with possible redirection
                     elsif sublemma.include?('>')
+                        # Check for a redirection with relation types
                         if sublemma =~ /(.+?)>\((.+?)\)(.+)/
                             # Format: word>(relation)target
                             text = $1.strip

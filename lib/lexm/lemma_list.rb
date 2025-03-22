@@ -609,6 +609,52 @@ module LexM
         def [](index)
             @lemmas[index]
         end
+
+        # Sort the lemmas based on their headwords (non-destructive)
+        # @param block [Proc] optional custom sort proc
+        # @return [LemmaList] a new sorted lemma list
+        def sort(&block)
+            if block_given?
+                sorted_list = LemmaList.new
+                sorted_list.instance_variable_set(:@lemmas, @lemmas.sort(&block))
+                sorted_list
+            else
+                # Default sort by headword text
+                sorted_list = LemmaList.new
+                sorted_list.instance_variable_set(:@lemmas, @lemmas.sort_by { |lemma| lemma.text.to_s.downcase })
+                sorted_list
+            end
+        end
+
+        # Sort the lemmas based on their headwords (destructive)
+        # @param block [Proc] optional custom sort proc
+        # @return [LemmaList] self
+        def sort!(&block)
+            if block_given?
+                @lemmas.sort!(&block)
+            else
+                # Default sort by headword text
+                @lemmas.sort_by! { |lemma| lemma.text.to_s.downcase }
+            end
+            self
+        end
+
+        # Sort the lemmas using a custom key function (non-destructive)
+        # @param block [Proc] key function to extract sort keys from lemmas
+        # @return [LemmaList] a new sorted lemma list
+        def sort_by(&block)
+            sorted_list = LemmaList.new
+            sorted_list.instance_variable_set(:@lemmas, @lemmas.sort_by(&block))
+            sorted_list
+        end
+
+        # Sort the lemmas using a custom key function (destructive)
+        # @param block [Proc] key function to extract sort keys from lemmas
+        # @return [LemmaList] self
+        def sort_by!(&block)
+            @lemmas.sort_by!(&block)
+            self
+        end
         
         # Save to a file
         # @param filename [String] file to save to

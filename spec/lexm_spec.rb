@@ -103,6 +103,66 @@ RSpec.describe LexM do
         end
 
         describe "#parseSublemmas" do
+            it "correctly parses a pure redirection sublemma" do
+                lemma = Lemma.new("word|>(sp,pp)target")
+                expect(lemma.sublemmas.size).to eq(1)
+                expect(lemma.sublemmas[0].text).to be_nil
+                expect(lemma.sublemmas[0].redirect).not_to be_nil
+                expect(lemma.sublemmas[0].redirect.target).to eq("target")
+                expect(lemma.sublemmas[0].redirect.types).to eq(["sp", "pp"])
+            end
+
+            it "correctly parses mixed normal sublemmas and pure redirection sublemmas" do
+                lemma = Lemma.new("word|one,>(sp,pp)target")
+                expect(lemma.sublemmas.size).to eq(2)
+                
+                # First sublemma should be a normal one
+                expect(lemma.sublemmas[0].text).to eq("one")
+                expect(lemma.sublemmas[0].redirect).to be_nil
+                
+                # Second sublemma should be a pure redirection
+                expect(lemma.sublemmas[1].text).to be_nil
+                expect(lemma.sublemmas[1].redirect).not_to be_nil
+                expect(lemma.sublemmas[1].redirect.target).to eq("target")
+                expect(lemma.sublemmas[1].redirect.types).to eq(["sp", "pp"])
+            end
+            
+            it "correctly parses multiple mixed sublemmas with redirections" do
+                lemma = Lemma.new("complex|one,two,>(rel1)target1,three,>(rel2,rel3)target2")
+                expect(lemma.sublemmas.size).to eq(5)
+                
+                # Check normal sublemmas
+                expect(lemma.sublemmas[0].text).to eq("one")
+                expect(lemma.sublemmas[0].redirect).to be_nil
+                expect(lemma.sublemmas[1].text).to eq("two")
+                expect(lemma.sublemmas[1].redirect).to be_nil
+                expect(lemma.sublemmas[3].text).to eq("three")
+                expect(lemma.sublemmas[3].redirect).to be_nil
+                
+                # Check redirection sublemmas
+                expect(lemma.sublemmas[2].text).to be_nil
+                expect(lemma.sublemmas[2].redirect).not_to be_nil
+                expect(lemma.sublemmas[2].redirect.target).to eq("target1")
+                expect(lemma.sublemmas[2].redirect.types).to eq(["rel1"])
+                
+                expect(lemma.sublemmas[4].text).to be_nil
+                expect(lemma.sublemmas[4].redirect).not_to be_nil
+                expect(lemma.sublemmas[4].redirect.target).to eq("target2")
+                expect(lemma.sublemmas[4].redirect.types).to eq(["rel2", "rel3"])
+            end
+            
+            it "correctly handles sublemmas with parentheses in their text" do
+                lemma = Lemma.new("word|term(a,b),>(rel)target")
+                expect(lemma.sublemmas.size).to eq(2)
+                expect(lemma.sublemmas[0].text).to eq("term(a,b)")
+                expect(lemma.sublemmas[0].redirect).to be_nil
+                
+                expect(lemma.sublemmas[1].text).to be_nil
+                expect(lemma.sublemmas[1].redirect).not_to be_nil
+                expect(lemma.sublemmas[1].redirect.target).to eq("target")
+                expect(lemma.sublemmas[1].redirect.types).to eq(["rel"])
+            end
+            
             it "correctly handles redirection sublemma followed by normal sublemma" do
                 lemma = Lemma.new("wrung|>(sp,pp)wring,abc")
                 expect(lemma.sublemmas.size).to eq(2)
@@ -175,14 +235,150 @@ RSpec.describe LexM do
                 expect(result).to eq(["one", "term((a,b),c)", "three"])
             end
         end
+        
+        describe "parent-child relationship" do
+            it "sets parent when creating from a string with sublemmas" do
+                lemma = Lemma.new("work|work out,work on")
+                
+                lemma.sublemmas.each do |sublemma|
+                    expect(sublemma.parent).to eq(lemma)
+                end
+            end
+            
+            it "sets parent when adding sublemmas programmatically" do
+                lemma = Lemma.new
+                lemma.text = "work"
+                lemma.addSublemma("work out")
+                lemma.addSublemmas(["work on", "work with"])
+                
+                lemma.sublemmas.each do |sublemma|
+                    expect(sublemma.parent).to eq(lemma)
+                end
+            end
+            
+            it "sets parent when adding a redirection sublemma" do
+                lemma = Lemma.new("work")
+                lemma.addRedirect("activity", ["syn"])
+                
+                expect(lemma.sublemmas.first.parent).to eq(lemma)
+            end
+        end
+        
+        describe "#shortcuts" do
+            it "returns an empty hash for redirection lemmas" do
+                lemma = Lemma.new("children>>(pl)child")
+                expect(lemma.shortcuts).to eq({})
+            end
+            
+            it "returns an empty hash for lemmas without sublemmas" do
+                lemma = Lemma.new("run[sp:ran,pp:run]")
+                expect(lemma.shortcuts).to eq({})
+            end
+            
+            it "returns shortcuts for all text sublemmas" do
+                lemma = Lemma.new("work|work out,work on,finish work")
+                shortcuts = lemma.shortcuts
+                
+                expect(shortcuts.size).to eq(3)
+                expect(shortcuts["work out"]).to eq("~ out")
+                expect(shortcuts["work on"]).to eq("~ on")
+                expect(shortcuts["finish work"]).to eq("finish work")  # No shortcut, different prefix
+            end
+            
+            it "skips redirection sublemmas" do
+                lemma = Lemma.new("work|work out,>(rel)target")
+                shortcuts = lemma.shortcuts
+                
+                expect(shortcuts.size).to eq(1)
+                expect(shortcuts["work out"]).to eq("~ out")
+            end
+            
+            it "uses the provided placeholder" do
+                lemma = Lemma.new("look|look up,look down")
+                shortcuts = lemma.shortcuts("*")
+                
+                expect(shortcuts["look up"]).to eq("* up")
+                expect(shortcuts["look down"]).to eq("* down")
+            end
+        end
     end
     
     describe Sublemma do
         it "stores source location information" do
-            sublemma = Sublemma.new("test", nil, "test.lexm", 15, 20)
+            sublemma = Sublemma.new("test", nil, nil, "test.lexm", 15, 20)
             expect(sublemma.source_file).to eq("test.lexm")
             expect(sublemma.source_line).to eq(15)
             expect(sublemma.source_column).to eq(20)
+        end
+        
+        describe "#shortcut" do
+            let(:parent_lemma) { LexM::Lemma.new("work") }
+            
+            it "returns nil when there is no parent" do
+                sublemma = LexM::Sublemma.new("work out")
+                expect(sublemma.shortcut).to be_nil
+            end
+            
+            it "returns nil for redirection sublemmas" do
+                redirect = LexM::LemmaRedirect.new("target", ["rel"])
+                sublemma = LexM::Sublemma.new(nil, redirect, parent_lemma)
+                expect(sublemma.shortcut).to be_nil
+            end
+            
+            it "replaces the lemma with a tilde placeholder" do
+                sublemma = LexM::Sublemma.new("work out", nil, parent_lemma)
+                expect(sublemma.shortcut).to eq("~ out")
+            end
+            
+            it "returns the full text when the sublemma doesn't start with the lemma" do
+                sublemma = LexM::Sublemma.new("carefully work", nil, parent_lemma)
+                expect(sublemma.shortcut).to eq("carefully work")
+            end
+            
+            it "uses the provided placeholder instead of tilde" do
+                sublemma = LexM::Sublemma.new("work out", nil, parent_lemma)
+                expect(sublemma.shortcut("*")).to eq("* out")
+            end
+            
+            it "doesn't create shortcuts for prefix matches that aren't separated by space" do
+                sublemma = LexM::Sublemma.new("workout", nil, parent_lemma)
+                expect(sublemma.shortcut).to eq("workout")
+            end
+            
+            it "handles multi-word lemmas correctly" do
+                multi_word_lemma = LexM::Lemma.new("get up")
+                sublemma = LexM::Sublemma.new("get up early", nil, multi_word_lemma)
+                expect(sublemma.shortcut).to eq("~ early")
+            end
+            
+            it "handles exact matches correctly" do
+                sublemma = LexM::Sublemma.new("work", nil, parent_lemma)
+                expect(sublemma.shortcut).to eq("~")
+            end
+        end
+        
+        describe "parent reference" do
+            it "is set when a sublemma is created with a parent" do
+                lemma = LexM::Lemma.new("work")
+                sublemma = LexM::Sublemma.new("work out", nil, lemma)
+                
+                expect(sublemma.parent).to eq(lemma)
+            end
+            
+            it "is set when a sublemma is added to a lemma" do
+                lemma = LexM::Lemma.new("work")
+                lemma.addSublemma("work out")
+                
+                expect(lemma.sublemmas.first.parent).to eq(lemma)
+            end
+            
+            it "is set when a lemma with sublemmas is created from a string" do
+                lemma = LexM::Lemma.new("work|work out,work on")
+                
+                lemma.sublemmas.each do |sublemma|
+                    expect(sublemma.parent).to eq(lemma)
+                end
+            end
         end
     end
 

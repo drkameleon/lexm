@@ -131,8 +131,9 @@ module LexM
                     @sublemmas << Sublemma.new(nil, redirect)
                 end
             else
-                # Split the sublemmas and process each one
-                sublemmas = sublemmasPart.split(',')
+                # We need a smarter way to split sublemmas that respects parentheses
+                # This helps us correctly handle cases like "one,>(sp,pp)wring"
+                sublemmas = smart_split_sublemmas(sublemmasPart)
                 
                 # Process each sublemma
                 sublemmas.each do |sublemma|
@@ -169,6 +170,35 @@ module LexM
                     end
                 end
             end
+        end
+        
+        # Helper method to split sublemmas while respecting parentheses
+        # This ensures we don't split inside relation type lists like (sp,pp)
+        # @param text [String] text to split at commas outside of parentheses
+        # @return [Array<String>] resulting substrings
+        def smart_split_sublemmas(text)
+            result = []
+            current = ""
+            paren_level = 0
+            
+            text.each_char do |c|
+                if c == ',' && paren_level == 0
+                    # Only split on commas outside of parentheses
+                    result << current unless current.empty?
+                    current = ""
+                else
+                    current << c
+                    # Track parenthesis nesting level
+                    if c == '('
+                        paren_level += 1
+                    elsif c == ')'
+                        paren_level -= 1 if paren_level > 0
+                    end
+                end
+            end
+            
+            result << current unless current.empty?
+            result
         end
         
         # Parse annotations like sp:past,pp:participle or pl:oxen

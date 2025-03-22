@@ -131,10 +131,10 @@ module LexM
                 if sublemma.start_with?('>')
                     if sublemma =~ />\((.+?)\)(.+)/
                         redirect = LemmaRedirect.new($2.strip, $1.split(',').map(&:strip))
-                        @sublemmas << Sublemma.new(nil, redirect)
+                        @sublemmas << Sublemma.new(nil, redirect, self)
                     elsif sublemma =~ />(.+)/
                         redirect = LemmaRedirect.new($1.strip)
-                        @sublemmas << Sublemma.new(nil, redirect)
+                        @sublemmas << Sublemma.new(nil, redirect, self)
                     end
                 # Handle normal sublemma with possible redirection
                 elsif sublemma.include?('>')
@@ -143,18 +143,18 @@ module LexM
                         # Format: word>(relation)target
                         text = $1.strip
                         redirect = LemmaRedirect.new($3.strip, $2.split(',').map(&:strip))
-                        @sublemmas << Sublemma.new(text, redirect)
+                        @sublemmas << Sublemma.new(text, redirect, self)
                     elsif sublemma =~ /(.+?)>(.+)/
                         # Simple redirection without relation type
                         text = $1.strip
                         redirect = LemmaRedirect.new($2.strip)
-                        @sublemmas << Sublemma.new(text, redirect)
+                        @sublemmas << Sublemma.new(text, redirect, self)
                     else
-                        @sublemmas << Sublemma.new(sublemma)
+                        @sublemmas << Sublemma.new(sublemma, nil, self)
                     end
                 else
                     # Simple sublemma
-                    @sublemmas << Sublemma.new(sublemma)
+                    @sublemmas << Sublemma.new(sublemma, nil, self)
                 end
             end
         end
@@ -233,7 +233,7 @@ module LexM
             if redirected?
                 raise "Cannot add sublemmas to a redirection lemma"
             end
-            @sublemmas << Sublemma.new(text)
+            @sublemmas << Sublemma.new(text, nil, self)
             self
         end
         
@@ -245,7 +245,7 @@ module LexM
                 raise "Cannot add sublemmas to a redirection lemma"
             end
             texts.each do |text|
-                @sublemmas << Sublemma.new(text)
+                @sublemmas << Sublemma.new(text, nil, self)
             end
             self
         end
@@ -259,7 +259,7 @@ module LexM
                 raise "Cannot add sublemmas to a redirection lemma"
             end
             redirect = LemmaRedirect.new(target, types)
-            @sublemmas << Sublemma.new(nil, redirect)
+            @sublemmas << Sublemma.new(nil, redirect, self)
             self
         end
         
@@ -273,6 +273,21 @@ module LexM
             end
             @redirect = LemmaRedirect.new(target, types)
             self
+        end
+
+        # Returns a hash mapping each sublemma to its shortcut
+        # @param placeholder [String] optional placeholder to use instead of "~" (default: "~")
+        # @return [Hash<String, String>] hash mapping full sublemma text to shortcut
+        def shortcuts(placeholder = "~")
+            return {} if @text.nil? || redirected? || @sublemmas.empty?
+            
+            result = {}
+            @sublemmas.each do |sublemma|
+                # Skip redirections and get the shortcut for text sublemmas
+                next if sublemma.redirected? || sublemma.text.nil?
+                result[sublemma.text] = sublemma.shortcut(placeholder)
+            end
+            result
         end
 
         # Validate annotation key and value format

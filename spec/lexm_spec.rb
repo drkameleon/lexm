@@ -592,6 +592,162 @@ RSpec.describe LexM do
                 expect(errors.first).to match(location_pattern)
             end
         end
+
+        describe "sorting methods" do
+            let(:list) { LemmaList.new }
+            
+            before do
+                # Create a list with unsorted lemmas
+                list.addLemma(Lemma.new("zebra"))
+                list.addLemma(Lemma.new("apple"))
+                list.addLemma(Lemma.new("banana"))
+                list.addLemma(Lemma.new("Apple"))  # Check case-insensitive sorting
+            end
+            
+            describe "#sort" do
+                it "returns a new LemmaList sorted by headwords" do
+                    sorted = list.sort
+                    
+                    # Check that it's a new list
+                    expect(sorted).not_to equal(list)
+                    expect(sorted).to be_a(LemmaList)
+                    
+                    # Check that it's properly sorted
+                    expect(sorted[0].text).to eq("apple")
+                    expect(sorted[1].text).to eq("Apple")
+                    expect(sorted[2].text).to eq("banana")
+                    expect(sorted[3].text).to eq("zebra")
+                end
+                
+                it "accepts a custom sort block" do
+                    # Sort by headword length
+                    # Note: We need to ensure consistent ordering for equal-length items
+                    sorted = list.sort { |a, b| 
+                      result = a.text.length <=> b.text.length
+                      result == 0 ? a.text <=> b.text : result  # Secondary sort by text
+                    }
+                    
+                    # Check sorting by length
+                    # "apple", "Apple", "zebra" all have 5 letters, so they'll be sorted alphabetically
+                    expect(sorted[0].text).to eq("Apple")
+                    expect(sorted[1].text).to eq("apple")
+                    expect(sorted[2].text).to eq("zebra")
+                    expect(sorted[3].text).to eq("banana")
+                end
+            end
+            
+            describe "#sort!" do
+                it "sorts the list in-place by headwords" do
+                    original_id = list.object_id
+                    list.sort!
+                    
+                    # Check that it's the same list
+                    expect(list.object_id).to eq(original_id)
+                    
+                    # Check that it's properly sorted
+                    expect(list[0].text).to eq("apple")
+                    expect(list[1].text).to eq("Apple")
+                    expect(list[2].text).to eq("banana")
+                    expect(list[3].text).to eq("zebra")
+                end
+                
+                it "accepts a custom sort block" do
+                    # Sort by headword length with secondary sort by text
+                    list.sort! { |a, b| 
+                      result = a.text.length <=> b.text.length
+                      result == 0 ? a.text <=> b.text : result
+                    }
+                    
+                    # Check sorting by length (with secondary alphabetical sort)
+                    expect(list[0].text).to eq("Apple")
+                    expect(list[1].text).to eq("apple")
+                    expect(list[2].text).to eq("zebra")
+                    expect(list[3].text).to eq("banana")
+                end
+            end
+            
+            describe "#sort_by" do
+                it "returns a new LemmaList sorted by the given criterion" do
+                    # Sort by headword length with secondary sort by text
+                    sorted = list.sort_by { |lemma| [lemma.text.length, lemma.text] }
+                    
+                    # Check that it's a new list
+                    expect(sorted).not_to equal(list)
+                    expect(sorted).to be_a(LemmaList)
+                    
+                    # Check sorting by length with secondary alphabetical sort
+                    expect(sorted[0].text).to eq("Apple")
+                    expect(sorted[1].text).to eq("apple")
+                    expect(sorted[2].text).to eq("zebra")
+                    expect(sorted[3].text).to eq("banana")
+                end
+                
+                it "can sort by multiple criteria" do
+                    # First by annotation presence, then by headword
+                    lemma_with_ann = Lemma.new("dog[adj:canine]")
+                    list.addLemma(lemma_with_ann)
+                    
+                    sorted = list.sort_by { |lemma| [lemma.annotations.empty? ? 1 : 0, lemma.text.downcase] }
+                    
+                    # Check that lemma with annotations comes first
+                    expect(sorted[0].text).to eq("dog")
+                    expect(sorted[0].annotations).not_to be_empty
+                    
+                    # Then check alphabetical order for the rest
+                    expect(sorted[1].text).to eq("apple")
+                    expect(sorted[2].text).to eq("Apple")
+                    expect(sorted[3].text).to eq("banana")
+                    expect(sorted[4].text).to eq("zebra")
+                end
+            end
+            
+            describe "#sort_by!" do
+                it "sorts the list in-place by the given criterion" do
+                    original_id = list.object_id
+                    
+                    # Sort by headword length with secondary sort by text
+                    list.sort_by! { |lemma| [lemma.text.length, lemma.text] }
+                    
+                    # Check that it's the same list
+                    expect(list.object_id).to eq(original_id)
+                    
+                    # Check sorting by length with secondary alphabetical sort
+                    expect(list[0].text).to eq("Apple")
+                    expect(list[1].text).to eq("apple")
+                    expect(list[2].text).to eq("zebra")
+                    expect(list[3].text).to eq("banana")
+                end
+            end
+            
+            describe "edge cases" do
+                it "handles nil texts correctly in default sort" do
+                    # Create a list with a nil text lemma
+                    special_list = LemmaList.new
+                    lemma_no_text = Lemma.new
+                    special_list.addLemma(lemma_no_text)
+                    special_list.addLemma(Lemma.new("aardvark"))
+                    
+                    sorted = special_list.sort
+                    
+                    # Nil texts should come first
+                    expect(sorted[0].text).to be_nil
+                    expect(sorted[1].text).to eq("aardvark")
+                end
+                
+                it "handles empty list correctly" do
+                    empty_list = LemmaList.new
+                    
+                    # These should not raise errors
+                    sorted1 = empty_list.sort
+                    sorted2 = empty_list.sort_by { |l| l.text.to_s }
+                    empty_list.sort!
+                    empty_list.sort_by! { |l| l.text.to_s }
+                    
+                    expect(sorted1.size).to eq(0)
+                    expect(sorted2.size).to eq(0)
+                end
+            end
+        end
     end
 
     describe "Error handling" do

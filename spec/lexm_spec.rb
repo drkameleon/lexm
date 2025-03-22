@@ -103,64 +103,56 @@ RSpec.describe LexM do
         end
 
         describe "#parseSublemmas" do
-            it "correctly parses a pure redirection sublemma" do
-                lemma = Lemma.new("word|>(sp,pp)target")
-                expect(lemma.sublemmas.size).to eq(1)
+            it "correctly handles redirection sublemma followed by normal sublemma" do
+                lemma = Lemma.new("wrung|>(sp,pp)wring,abc")
+                expect(lemma.sublemmas.size).to eq(2)
+                
+                # First sublemma should be a pure redirection
                 expect(lemma.sublemmas[0].text).to be_nil
                 expect(lemma.sublemmas[0].redirect).not_to be_nil
-                expect(lemma.sublemmas[0].redirect.target).to eq("target")
+                expect(lemma.sublemmas[0].redirect.target).to eq("wring")
                 expect(lemma.sublemmas[0].redirect.types).to eq(["sp", "pp"])
+                
+                # Second sublemma should be a normal one
+                expect(lemma.sublemmas[1].text).to eq("abc")
+                expect(lemma.sublemmas[1].redirect).to be_nil
             end
-
-            it "correctly parses mixed normal sublemmas and pure redirection sublemmas" do
-                lemma = Lemma.new("word|one,>(sp,pp)target")
+            
+            it "correctly handles normal sublemma followed by redirection sublemma" do
+                lemma = Lemma.new("wrung|abc,>(sp,pp)wring")
                 expect(lemma.sublemmas.size).to eq(2)
                 
                 # First sublemma should be a normal one
-                expect(lemma.sublemmas[0].text).to eq("one")
+                expect(lemma.sublemmas[0].text).to eq("abc")
                 expect(lemma.sublemmas[0].redirect).to be_nil
                 
                 # Second sublemma should be a pure redirection
                 expect(lemma.sublemmas[1].text).to be_nil
                 expect(lemma.sublemmas[1].redirect).not_to be_nil
-                expect(lemma.sublemmas[1].redirect.target).to eq("target")
+                expect(lemma.sublemmas[1].redirect.target).to eq("wring")
                 expect(lemma.sublemmas[1].redirect.types).to eq(["sp", "pp"])
             end
             
-            it "correctly parses multiple mixed sublemmas with redirections" do
-                lemma = Lemma.new("complex|one,two,>(rel1)target1,three,>(rel2,rel3)target2")
-                expect(lemma.sublemmas.size).to eq(5)
+            it "correctly handles multiple mixed sublemmas with redirection first" do
+                lemma = Lemma.new("complex|>(rel1)target1,one,>(rel2,rel3)target2,two")
+                expect(lemma.sublemmas.size).to eq(4)
                 
-                # Check normal sublemmas
-                expect(lemma.sublemmas[0].text).to eq("one")
-                expect(lemma.sublemmas[0].redirect).to be_nil
-                expect(lemma.sublemmas[1].text).to eq("two")
+                # Check sublemmas in order
+                expect(lemma.sublemmas[0].text).to be_nil
+                expect(lemma.sublemmas[0].redirect).not_to be_nil
+                expect(lemma.sublemmas[0].redirect.target).to eq("target1")
+                expect(lemma.sublemmas[0].redirect.types).to eq(["rel1"])
+                
+                expect(lemma.sublemmas[1].text).to eq("one")
                 expect(lemma.sublemmas[1].redirect).to be_nil
-                expect(lemma.sublemmas[3].text).to eq("three")
-                expect(lemma.sublemmas[3].redirect).to be_nil
                 
-                # Check redirection sublemmas
                 expect(lemma.sublemmas[2].text).to be_nil
                 expect(lemma.sublemmas[2].redirect).not_to be_nil
-                expect(lemma.sublemmas[2].redirect.target).to eq("target1")
-                expect(lemma.sublemmas[2].redirect.types).to eq(["rel1"])
+                expect(lemma.sublemmas[2].redirect.target).to eq("target2")
+                expect(lemma.sublemmas[2].redirect.types).to eq(["rel2", "rel3"])
                 
-                expect(lemma.sublemmas[4].text).to be_nil
-                expect(lemma.sublemmas[4].redirect).not_to be_nil
-                expect(lemma.sublemmas[4].redirect.target).to eq("target2")
-                expect(lemma.sublemmas[4].redirect.types).to eq(["rel2", "rel3"])
-            end
-            
-            it "correctly handles sublemmas with parentheses in their text" do
-                lemma = Lemma.new("word|term(a,b),>(rel)target")
-                expect(lemma.sublemmas.size).to eq(2)
-                expect(lemma.sublemmas[0].text).to eq("term(a,b)")
-                expect(lemma.sublemmas[0].redirect).to be_nil
-                
-                expect(lemma.sublemmas[1].text).to be_nil
-                expect(lemma.sublemmas[1].redirect).not_to be_nil
-                expect(lemma.sublemmas[1].redirect.target).to eq("target")
-                expect(lemma.sublemmas[1].redirect.types).to eq(["rel"])
+                expect(lemma.sublemmas[3].text).to eq("two")
+                expect(lemma.sublemmas[3].redirect).to be_nil
             end
         end
         

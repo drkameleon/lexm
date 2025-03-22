@@ -119,55 +119,42 @@ module LexM
         # @param sublemmasPart [String] sublemmas part string
         # @return [void]
         def parseSublemmas(sublemmasPart)
-            # Check if the sublemma part starts with a redirection marker
-            if sublemmasPart.start_with?('>')
-                # This is a case where the lemma has a pure redirection sublemma
-                # Format: word|>(relation)target
-                if sublemmasPart =~ />\((.+?)\)(.+)/
-                    redirect = LemmaRedirect.new($2.strip, $1.split(',').map(&:strip))
-                    @sublemmas << Sublemma.new(nil, redirect)
-                elsif sublemmasPart =~ />(.+)/
-                    redirect = LemmaRedirect.new($1.strip)
-                    @sublemmas << Sublemma.new(nil, redirect)
-                end
-            else
-                # We need a smarter way to split sublemmas that respects parentheses
-                # This helps us correctly handle cases like "one,>(sp,pp)wring"
-                sublemmas = smart_split_sublemmas(sublemmasPart)
+            # We need a smarter way to split sublemmas that respects parentheses
+            # This helps us correctly handle cases like ">(sp,pp)wring,abc"
+            sublemmas = smart_split_sublemmas(sublemmasPart)
+            
+            # Process each sublemma
+            sublemmas.each do |sublemma|
+                sublemma = sublemma.strip
                 
-                # Process each sublemma
-                sublemmas.each do |sublemma|
-                    sublemma = sublemma.strip
-                    
-                    # Handle pure redirection sublemma (starts with >)
-                    if sublemma.start_with?('>')
-                        if sublemma =~ />\((.+?)\)(.+)/
-                            redirect = LemmaRedirect.new($2.strip, $1.split(',').map(&:strip))
-                            @sublemmas << Sublemma.new(nil, redirect)
-                        elsif sublemma =~ />(.+)/
-                            redirect = LemmaRedirect.new($1.strip)
-                            @sublemmas << Sublemma.new(nil, redirect)
-                        end
-                    # Handle normal sublemma with possible redirection
-                    elsif sublemma.include?('>')
-                        # Check for a redirection with relation types
-                        if sublemma =~ /(.+?)>\((.+?)\)(.+)/
-                            # Format: word>(relation)target
-                            text = $1.strip
-                            redirect = LemmaRedirect.new($3.strip, $2.split(',').map(&:strip))
-                            @sublemmas << Sublemma.new(text, redirect)
-                        elsif sublemma =~ /(.+?)>(.+)/
-                            # Simple redirection without relation type
-                            text = $1.strip
-                            redirect = LemmaRedirect.new($2.strip)
-                            @sublemmas << Sublemma.new(text, redirect)
-                        else
-                            @sublemmas << Sublemma.new(sublemma)
-                        end
+                # Handle pure redirection sublemma (starts with >)
+                if sublemma.start_with?('>')
+                    if sublemma =~ />\((.+?)\)(.+)/
+                        redirect = LemmaRedirect.new($2.strip, $1.split(',').map(&:strip))
+                        @sublemmas << Sublemma.new(nil, redirect)
+                    elsif sublemma =~ />(.+)/
+                        redirect = LemmaRedirect.new($1.strip)
+                        @sublemmas << Sublemma.new(nil, redirect)
+                    end
+                # Handle normal sublemma with possible redirection
+                elsif sublemma.include?('>')
+                    # Check for a redirection with relation types
+                    if sublemma =~ /(.+?)>\((.+?)\)(.+)/
+                        # Format: word>(relation)target
+                        text = $1.strip
+                        redirect = LemmaRedirect.new($3.strip, $2.split(',').map(&:strip))
+                        @sublemmas << Sublemma.new(text, redirect)
+                    elsif sublemma =~ /(.+?)>(.+)/
+                        # Simple redirection without relation type
+                        text = $1.strip
+                        redirect = LemmaRedirect.new($2.strip)
+                        @sublemmas << Sublemma.new(text, redirect)
                     else
-                        # Simple sublemma
                         @sublemmas << Sublemma.new(sublemma)
                     end
+                else
+                    # Simple sublemma
+                    @sublemmas << Sublemma.new(sublemma)
                 end
             end
         end

@@ -101,6 +101,88 @@ RSpec.describe LexM do
                 expect(lemma.redirect).to be_nil
             end
         end
+
+        describe "#parseSublemmas" do
+            it "correctly parses a pure redirection sublemma" do
+                lemma = Lemma.new("word|>(sp,pp)target")
+                expect(lemma.sublemmas.size).to eq(1)
+                expect(lemma.sublemmas[0].text).to be_nil
+                expect(lemma.sublemmas[0].redirect).not_to be_nil
+                expect(lemma.sublemmas[0].redirect.target).to eq("target")
+                expect(lemma.sublemmas[0].redirect.types).to eq(["sp", "pp"])
+            end
+
+            it "correctly parses mixed normal sublemmas and pure redirection sublemmas" do
+                lemma = Lemma.new("word|one,>(sp,pp)target")
+                expect(lemma.sublemmas.size).to eq(2)
+                
+                # First sublemma should be a normal one
+                expect(lemma.sublemmas[0].text).to eq("one")
+                expect(lemma.sublemmas[0].redirect).to be_nil
+                
+                # Second sublemma should be a pure redirection
+                expect(lemma.sublemmas[1].text).to be_nil
+                expect(lemma.sublemmas[1].redirect).not_to be_nil
+                expect(lemma.sublemmas[1].redirect.target).to eq("target")
+                expect(lemma.sublemmas[1].redirect.types).to eq(["sp", "pp"])
+            end
+            
+            it "correctly parses multiple mixed sublemmas with redirections" do
+                lemma = Lemma.new("complex|one,two,>(rel1)target1,three,>(rel2,rel3)target2")
+                expect(lemma.sublemmas.size).to eq(5)
+                
+                # Check normal sublemmas
+                expect(lemma.sublemmas[0].text).to eq("one")
+                expect(lemma.sublemmas[0].redirect).to be_nil
+                expect(lemma.sublemmas[1].text).to eq("two")
+                expect(lemma.sublemmas[1].redirect).to be_nil
+                expect(lemma.sublemmas[3].text).to eq("three")
+                expect(lemma.sublemmas[3].redirect).to be_nil
+                
+                # Check redirection sublemmas
+                expect(lemma.sublemmas[2].text).to be_nil
+                expect(lemma.sublemmas[2].redirect).not_to be_nil
+                expect(lemma.sublemmas[2].redirect.target).to eq("target1")
+                expect(lemma.sublemmas[2].redirect.types).to eq(["rel1"])
+                
+                expect(lemma.sublemmas[4].text).to be_nil
+                expect(lemma.sublemmas[4].redirect).not_to be_nil
+                expect(lemma.sublemmas[4].redirect.target).to eq("target2")
+                expect(lemma.sublemmas[4].redirect.types).to eq(["rel2", "rel3"])
+            end
+            
+            it "correctly handles sublemmas with parentheses in their text" do
+                lemma = Lemma.new("word|term(a,b),>(rel)target")
+                expect(lemma.sublemmas.size).to eq(2)
+                expect(lemma.sublemmas[0].text).to eq("term(a,b)")
+                expect(lemma.sublemmas[0].redirect).to be_nil
+                
+                expect(lemma.sublemmas[1].text).to be_nil
+                expect(lemma.sublemmas[1].redirect).not_to be_nil
+                expect(lemma.sublemmas[1].redirect.target).to eq("target")
+                expect(lemma.sublemmas[1].redirect.types).to eq(["rel"])
+            end
+        end
+        
+        describe "#smart_split_sublemmas" do
+            it "correctly splits simple comma-separated sublemmas" do
+                lemma = Lemma.new
+                result = lemma.send(:smart_split_sublemmas, "one,two,three")
+                expect(result).to eq(["one", "two", "three"])
+            end
+            
+            it "preserves commas inside parentheses" do
+                lemma = Lemma.new
+                result = lemma.send(:smart_split_sublemmas, "one,>(sp,pp)target")
+                expect(result).to eq(["one", ">(sp,pp)target"])
+            end
+            
+            it "handles nested parentheses correctly" do
+                lemma = Lemma.new
+                result = lemma.send(:smart_split_sublemmas, "one,term((a,b),c),three")
+                expect(result).to eq(["one", "term((a,b),c)", "three"])
+            end
+        end
     end
     
     describe Sublemma do
@@ -278,7 +360,7 @@ RSpec.describe LexM do
                 
                 errors = list.validateAll
                 expect(errors).not_to be_empty
-                expect(errors.any? { |e| e.include?("both a headword and a sublemma") }).to be true
+                expect(errors.any? { |e| e.include?("is both a headword") && e.include?("and a sublemma of") }).to be true
             end
             
             it "detects words that are both normal headwords and redirection headwords" do
@@ -287,7 +369,7 @@ RSpec.describe LexM do
                 
                 errors = list.validateAll
                 expect(errors).not_to be_empty
-                expect(errors.any? { |e| e.include?("both a normal headword and a redirection headword") }).to be true
+                expect(errors.any? { |e| e.include?("is both a normal headword") && e.include?("and a redirection headword") }).to be true
             end
             
             it "detects all issues at once" do
@@ -429,7 +511,8 @@ RSpec.describe LexM do
                     list.addLemma(Lemma.new("run[sp:ran]"), false)
                     list.instance_variable_get(:@lemmas) << Lemma.new("run>>go")
                     
-                    expect { list.validateSublemmaRelationships }.to raise_error(/both a normal headword and a redirection headword/)
+                    # Update the regex to match the actual error message format
+                    expect { list.validateSublemmaRelationships }.to raise_error(/is both a normal headword.*and a redirection headword/)
                 end
                 
                 it "includes source location in validation errors" do
